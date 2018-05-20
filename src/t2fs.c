@@ -21,23 +21,25 @@ int init(){
 	}
 
 	// Atualiza a global SUPERBLOCO a partir do setor ZERO lido
-	memcpy(SUPERBLOCK.id,buffer,4);
+/*	memcpy(SUPERBLOCK.id,buffer,4);
 	memcpy(&SUPERBLOCK.version,buffer+4,2);
 	memcpy(&SUPERBLOCK.superblockSize,buffer+6,2);
 	memcpy(&SUPERBLOCK.freeBlocksBitmapSize,buffer+8,2);
 	memcpy(&SUPERBLOCK.freeInodeBitmapSize,buffer+10,2);
 	memcpy(&SUPERBLOCK.inodeAreaSize,buffer+12,2);
 	memcpy(&SUPERBLOCK.blockSize,buffer+14,2);
-	memcpy(&SUPERBLOCK.diskSize,buffer+16,4);
+	memcpy(&SUPERBLOCK.diskSize,buffer+16,4); */
 
-	printf("%.4s\n",SUPERBLOCK.id);
+	memcpy(&SUPERBLOCK,&buffer,sizeof(struct t2fs_superbloco));
+
+/*	printf("%.4s\n",SUPERBLOCK.id);
 	printf("%x\n",SUPERBLOCK.version);
 	printf("%d\n",SUPERBLOCK.superblockSize);
 	printf("%d\n",SUPERBLOCK.freeBlocksBitmapSize);
 	printf("%d\n",SUPERBLOCK.freeInodeBitmapSize);
 	printf("%d\n",SUPERBLOCK.inodeAreaSize);
 	printf("%d\n",SUPERBLOCK.blockSize);
-	printf("%d\n",SUPERBLOCK.diskSize);
+	printf("%d\n",SUPERBLOCK.diskSize); */
 
 	return SUCCESS;
 }
