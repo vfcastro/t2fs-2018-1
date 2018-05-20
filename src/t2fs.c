@@ -41,6 +41,7 @@ int init(){
 	printf("%d\n",SUPERBLOCK.blockSize);
 	printf("%d\n",SUPERBLOCK.diskSize); */
 
+	T2FS_INIT = 1;
 	return SUCCESS;
 }
 
