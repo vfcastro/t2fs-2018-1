@@ -10,38 +10,46 @@
 
 int T2FS_INIT = 0;
 struct t2fs_superbloco SUPERBLOCK;
+struct t2fs_inode INODE_ZERO;
+
 
 int init(){
 	unsigned char buffer[SECTOR_SIZE];
 
 	// Le o setor ZERO do disco
 	if(read_sector(0,buffer) != SUCCESS){
-    	printf("init(): read_sector() failed!\n");
+    	printf("init(): read_sector(0,buffer) failed!\n");
     	return ERROR;
 	}
-
 	// Atualiza a global SUPERBLOCO a partir do setor ZERO lido
-/*	memcpy(SUPERBLOCK.id,buffer,4);
-	memcpy(&SUPERBLOCK.version,buffer+4,2);
-	memcpy(&SUPERBLOCK.superblockSize,buffer+6,2);
-	memcpy(&SUPERBLOCK.freeBlocksBitmapSize,buffer+8,2);
-	memcpy(&SUPERBLOCK.freeInodeBitmapSize,buffer+10,2);
-	memcpy(&SUPERBLOCK.inodeAreaSize,buffer+12,2);
-	memcpy(&SUPERBLOCK.blockSize,buffer+14,2);
-	memcpy(&SUPERBLOCK.diskSize,buffer+16,4); */
-
 	memcpy(&SUPERBLOCK,&buffer,sizeof(struct t2fs_superbloco));
 
-/*	printf("%.4s\n",SUPERBLOCK.id);
+	printf("%.4s\n",SUPERBLOCK.id);
 	printf("%x\n",SUPERBLOCK.version);
 	printf("%d\n",SUPERBLOCK.superblockSize);
 	printf("%d\n",SUPERBLOCK.freeBlocksBitmapSize);
 	printf("%d\n",SUPERBLOCK.freeInodeBitmapSize);
 	printf("%d\n",SUPERBLOCK.inodeAreaSize);
 	printf("%d\n",SUPERBLOCK.blockSize);
-	printf("%d\n",SUPERBLOCK.diskSize); */
+	printf("%d\n",SUPERBLOCK.diskSize); 
+
+
+	// Calcula o setor do inode ZERO
+	DWORD inode_zero_sector = SUPERBLOCK.blockSize * 
+						(SUPERBLOCK.superblockSize+
+						SUPERBLOCK.freeBlocksBitmapSize+
+						SUPERBLOCK.freeInodeBitmapSize);
+	// Le o inode ZERO do disco
+	if(read_sector(inode_zero_sector,buffer) != SUCCESS){
+    	printf("init(): read_sector(inode_zero_sector,buffer) failed!\n");
+    	return ERROR;
+	}
+	// Atualiza a global INODE_ZERO com o inode lido
+	memcpy(&INODE_ZERO,&buffer,sizeof(struct t2fs_inode));
+
 
 	T2FS_INIT = 1;
+
 	return SUCCESS;
 }
 
