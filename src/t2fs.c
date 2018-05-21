@@ -1,12 +1,21 @@
 #include "../include/t2fs.h"
 #include "../include/apidisk.h"
 #include "../include/bitmap2.h"
+#include "../include/support.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define SUCCESS 0
 #define ERROR -1
+
+typedef struct {
+	DIR2 handle;
+	struct t2fs_inode inode;
+	
+	
+} OPEN_DIR;
+
 
 int T2FS_INIT = 0;
 struct t2fs_superbloco SUPERBLOCK;
@@ -24,16 +33,6 @@ int init(){
 	// Atualiza a global SUPERBLOCO a partir do setor ZERO lido
 	memcpy(&SUPERBLOCK,&buffer,sizeof(struct t2fs_superbloco));
 
-	printf("%.4s\n",SUPERBLOCK.id);
-	printf("%x\n",SUPERBLOCK.version);
-	printf("%d\n",SUPERBLOCK.superblockSize);
-	printf("%d\n",SUPERBLOCK.freeBlocksBitmapSize);
-	printf("%d\n",SUPERBLOCK.freeInodeBitmapSize);
-	printf("%d\n",SUPERBLOCK.inodeAreaSize);
-	printf("%d\n",SUPERBLOCK.blockSize);
-	printf("%d\n",SUPERBLOCK.diskSize); 
-
-
 	// Calcula o setor do inode ZERO
 	DWORD inode_zero_sector = SUPERBLOCK.blockSize * 
 						(SUPERBLOCK.superblockSize+
@@ -46,6 +45,20 @@ int init(){
 	}
 	// Atualiza a global INODE_ZERO com o inode lido
 	memcpy(&INODE_ZERO,&buffer,sizeof(struct t2fs_inode));
+
+	
+	// Imprime dados do disco e structs
+	printf("SECTOR_SIZE: %d\n",SECTOR_SIZE);
+	printf("SUPERBLOCK.id: %.4s\n",SUPERBLOCK.id);
+	printf("SUPERBLOCK.version: %x\n",SUPERBLOCK.version);
+	printf("SUPERBLOCK.superblockSize: %d\n",SUPERBLOCK.superblockSize);
+	printf("SUPERBLOCK.freeBlocksBitmapSize: %d\n",SUPERBLOCK.freeBlocksBitmapSize);
+	printf("SUPERBLOCK.freeInodeBitmapSize: %d\n",SUPERBLOCK.freeInodeBitmapSize);
+	printf("SUPERBLOCK.inodeAreaSize: %d\n",SUPERBLOCK.inodeAreaSize);
+	printf("SUPERBLOCK.blockSize: %d\n",SUPERBLOCK.blockSize);
+	printf("SUPERBLOCK.diskSize: %d\n",SUPERBLOCK.diskSize); 
+	printf("sizeof(struct t2fs_record): %d\n",sizeof(struct t2fs_record));
+	printf("sizeof(struct t2fs_inode): %d\n",sizeof(struct t2fs_inode));  
 
 
 	T2FS_INIT = 1;
@@ -69,4 +82,15 @@ int identify2 (char *name, int size){
 		return ERROR; 
 }
 
+DIR2 opendir2 (char *pathname){
+	// Inicializa t2fs caso nao esteja
+	if(!T2FS_INIT)
+		if(init() == ERROR){
+        	printf("opendir2(): init() failed!\n");
+	    	return ERROR;		
+		}
+
+	
+	return SUCCESS;
+}
 
