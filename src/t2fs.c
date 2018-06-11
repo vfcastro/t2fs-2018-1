@@ -24,6 +24,27 @@ HANDLE* CWD;
 struct t2fs_superbloco SUPERBLOCK;
 struct t2fs_inode INODE_ZERO;
 
+// Imprime HANDLEs abertos nas filas
+void print_handles(PFILA2 fila, char* name){
+	PNODE2 nodeFila;
+	HANDLE *handle;
+	if(FirstFila2(fila) != SUCCESS)
+    	printf("print_handles(&%s): FirstFila2(fila) failed!\n",name);
+	else {
+		do {
+			nodeFila = GetAtIteratorFila2(fila);
+			handle = nodeFila->node;
+			printf("print_handles(&%s):\nid:%d\nrecord.TypeVal:%x\nrecord.name:\"%s\"\nrecord.inodeNumber:%d\nhandle->current_offset:%d\n",
+					name,
+					handle->id,
+					handle->record.TypeVal,
+					handle->record.name,
+					handle->record.inodeNumber,
+					handle->current_offset);
+		}
+		while(NextFila2(fila) == SUCCESS);
+	}
+}
 
 // Retorna TID sequencial
 int get_handle_id(){
@@ -111,6 +132,8 @@ int init(){
 	// Fim da inicializacao da T2FS
 	T2FS_INIT = 1;
 
+	print_handles(&OPEN_DIRS,"OPEN_DIRS");
+
 	return SUCCESS;
 }
 
@@ -138,7 +161,55 @@ DIR2 opendir2 (char *pathname){
 	    	return ERROR;		
 		}
 
+	// Checa o pathname de entrada
+	if(pathname == NULL) {
+       	printf("opendir2() failed! *pathname is NULL!\n");
+    	return ERROR;		
+	}
+	if(strlen(pathname) < 1) {
+       	printf("opendir2() failed! pathname is empty!\n");
+    	return ERROR;		
+	}
+
+	// Entrada de diretorio atual no caminhamento do pathname
+	
+
+	// Checa se o pathname e relativo ou absoluto
+	if(pathname[0] == '/'){}
+
+
+
+
 	
 	return SUCCESS;
 }
 
+int getcwd2 (char *pathname, int size){
+	// Inicializa t2fs caso nao esteja
+	if(!T2FS_INIT)
+		if(init() == ERROR){
+        	printf("getcwd2(): init() failed!\n");
+	    	return ERROR;		
+		}
+
+	// Checa se o CWD é válido
+	if(CWD == NULL){
+       	printf("getcwd2(): CWD is NULL!\n");
+    	return ERROR;	
+	}
+
+	// Checa se o tamanho do buffer *pathname eh menor que o nome do CWD
+	// CWD->record.name + 1 por causa do terminador de string
+	if(strlen(CWD->record.name)+1 > size){
+       	printf("getcwd2(): *pathname size is too small! CWD size is %d bytes, %d bytes buffer given.\n",strlen(CWD->record.name)+1,size);
+    	return ERROR;
+	}
+
+	// Copia o nome de CWD para o buffer *pathname
+	if(strncpy(pathname,CWD->record.name,strlen(CWD->record.name)+1) != NULL)
+		return SUCCESS;
+	else{
+       	printf("getcwd2(): strncpy failed!\n");
+    	return ERROR;	
+	}
+}

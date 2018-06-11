@@ -1,3 +1,7 @@
+/* 
+	Testa a função cidentify2
+*/
+
 #include "../include/t2fs.h"
 #include <stdio.h>
 
