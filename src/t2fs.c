@@ -95,6 +95,48 @@ int get_handle_id(){
 	return id;
 }
 
+// Procura no diretorio dir pelo record de nome *name, e retorna o record
+struct t2fs_record find_record_in_dir (char *name, struct t2fs_inode dir) {
+
+	// Inicializa record de retorno e buffer de blocos
+	struct t2fs_record record;
+	strncpy(record.name,name,59);
+	record.TypeVal = TYPEVAL_INVALIDO;
+	unsigned char buffer[SECTOR_SIZE*SUPERBLOCK.blockSize];
+
+	// Checa se o *name é invalido
+	if(name == NULL || strlen(name) == 0){
+		printf("find_record_in_dir(): name is NULL or empty!\n");
+    	return record;		
+	}
+	
+	// Percorre todos os blocos de dir
+	int i,j;
+	for(i=0; i < dir.blocksFileSize; i++){
+		// Ponteiros DIRETOS (2)
+		if(i < 2){
+			// ERRO na leitura do bloco
+			if(read_block(dir.dataPtr[i],buffer) == ERROR){
+				printf("find_record_in_dir(): read_block(block=%u,&buffer=%d) failed!",dir.dataPtr[i],(int)buffer);
+				return record;
+			}
+			
+			// PROCURA record no bloco lido
+			for(j=0; j < dir.bytesFileSize/sizeof(struct t2fs_record); j++){
+
+			}
+			
+		}
+		
+		// Primeira INDIRECAO
+
+		// Segunda INDIRECAO  
+		
+	}
+	
+	return record;
+}
+
 // Inicializacao T2FS
 int init(){
 	unsigned char buffer[SECTOR_SIZE];
@@ -121,7 +163,7 @@ int init(){
 	memcpy(&INODE_ZERO,&buffer,sizeof(struct t2fs_inode));
 
 	
-	/* Imprime dados do disco e structs
+	// Imprime dados do disco e structs
 	printf("SECTOR_SIZE: %d\n\n",SECTOR_SIZE);
 	printf("SUPERBLOCK.id: %.4s\n",SUPERBLOCK.id);
 	printf("SUPERBLOCK.version: %x\n",SUPERBLOCK.version);
@@ -136,7 +178,7 @@ int init(){
 	printf("INODE_ZERO.blocksFileSize: %d\n",INODE_ZERO.blocksFileSize);  
 	printf("INODE_ZERO.bytesFileSize: %d\n",INODE_ZERO.bytesFileSize);
 	printf("INODE_ZERO.dataPtr[0]: %d\n",INODE_ZERO.dataPtr[0]);
-	printf("INODE_ZERO.dataPtr[1]: %d\n\n",INODE_ZERO.dataPtr[1]); */
+	printf("INODE_ZERO.dataPtr[1]: %d\n\n",INODE_ZERO.dataPtr[1]); 
 
 	// Inicializa filas de arquivos e diretorios abertos
 	if(CreateFila2(&OPEN_DIRS) != SUCCESS || CreateFila2(&OPEN_FILES) != SUCCESS){
@@ -215,16 +257,15 @@ DIR2 opendir2 (char *pathname){
     	return ERROR;		
 	}
 
-	// Se o pathname for ABSOLUTO:
+	// Aloca string "path" para manipulacao via strtok
 	char* token;
-	if(pathname[0] == '/'){
-		
-		// Aloca string "path" para manipulacao via strtok
-		char *path = (char*)malloc(strlen(pathname)+1);
-		strcpy(path,pathname);
-		token = strtok(path,DELIMITER);
+	char *path = (char*)malloc(strlen(pathname)+1);
+	strcpy(path,pathname);
+	token = strtok(path,DELIMITER);
 
-		// Se o path eh o "/", abre o diretorio RAIZ e retorna o handle
+	// Pathname ABSOLUTO:
+	if(pathname[0] == '/'){
+		// Pathname eh o "/", abre o diretorio RAIZ e retorna o handle
 		if(token == NULL) {
 			// Aloca e inicializa HANDLE para o diretorio RAIZ
 			PNODE2 nodeFila = (PNODE2)malloc(sizeof(NODE2));
@@ -258,18 +299,18 @@ DIR2 opendir2 (char *pathname){
 
 		// Pathname contem pelo menos um nivel a partir do diretorio raiz
 		else {
-		// Procura pelo arquivo com o nome do token encontrado no diretorio raiz 
-
-/*			unsigned char buffer[SECTOR_SIZE*SUPERBLOCK.blockSize];
-			if(read_block(67,buffer) == ERROR){
-				printf("read_block(67,buffer) == ERROR");
-				return ERROR;
-			}
-			print_record((struct t2fs_record*)buffer);  */
-
+			// Procura pelo record com o nome do token a partir do "/"
+			struct t2fs_inode curr_inode = INODE_ZERO;
 			do{
+				struct t2fs_record record = find_record_in_dir(token,curr_inode);				
 				printf("%s\n",token);
 				token = strtok(NULL,DELIMITER);
+				print_record(&record);
+				
+				// ENCONTROU o record, retorna
+				if(record.TypeVal != TYPEVAL_INVALIDO)
+					return SUCCESS;
+				
 			}
 			while(token != NULL);
 
@@ -283,9 +324,9 @@ DIR2 opendir2 (char *pathname){
 
 		
 
-
-
-	return SUCCESS;
+	// NAO ENCONTROU o record, libera recursos e retorna record INVALIDO
+	free(path);
+	return ERROR;
 }
 
 int getcwd2 (char *pathname, int size){
