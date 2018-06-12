@@ -1,6 +1,6 @@
 LIB_DIR=../lib/
 
-all: identify2 getcwd2
+all: identify2 getcwd2 opendir2
  
 identify2:
 	gcc -o identify2 identify2.c -L$(LIB_DIR) -lt2fs -Wall
@@ -8,5 +8,8 @@ identify2:
 getcwd2:
 	gcc -o getcwd2 getcwd2.c -L$(LIB_DIR) -lt2fs -Wall
 
+opendir2:
+	gcc -o opendir2 opendir2.c -L$(LIB_DIR) -lt2fs -Wall
+
 clean:
-	rm -rf identify2 getcwd2
+	rm -rf identify2 getcwd2 opendir2
