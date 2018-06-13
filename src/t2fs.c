@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include<unistd.h> 
 
 
 #define SUCCESS 0
@@ -26,6 +25,25 @@ FILA2 OPEN_FILES;
 HANDLE* CWD;
 struct t2fs_superbloco SUPERBLOCK;
 struct t2fs_inode INODE_ZERO;
+
+// 
+int read_inode(DWORD inodeNumber, struct t2fs_inode *inode){
+	unsigned char buffer[SECTOR_SIZE];
+
+	// Calcula o setor do inode
+	DWORD inode_sector = (SUPERBLOCK.blockSize * 
+						(SUPERBLOCK.superblockSize+
+						SUPERBLOCK.freeBlocksBitmapSize+
+						SUPERBLOCK.freeInodeBitmapSize)) + inodeNumber*sizeof(struct t2fs_inode);
+	// Le o setor do inode no disco
+	if(read_sector(inode_sector,buffer) != SUCCESS){
+    	printf("read_inode(): read_sector(inode_sector,buffer) failed!\n");
+    	return ERROR;
+	}
+	// Copia o inode lido para o parametro *inode e retorna
+	memcpy(inode,&buffer,sizeof(struct t2fs_inode));
+	return SUCCESS;
+}
 
 // Imprime um t2fs_record
 void print_record (struct t2fs_record *record){
@@ -95,6 +113,37 @@ int get_handle_id(){
 	return id;
 }
 
+// Aloca um HANDLE nas filas OPEN_DIRS ou OPEN_FILES e inicializa com record
+int create_handle(FILA2 *fila, struct t2fs_record record){
+	// ALOCA no na fila para o HANDLE
+	PNODE2 nodeFila = (PNODE2)malloc(sizeof(NODE2));
+	if(nodeFila == NULL){
+		printf("create_handle(): (PNODE2)malloc(sizeof(NODE2)) failed!");
+		return ERROR;
+	}
+
+	HANDLE *handle = (HANDLE*)malloc(sizeof(HANDLE));
+	if(handle == NULL){
+		printf("create_handle(): (HANDLE*)malloc(sizeof(HANDLE)) failed!");
+		return ERROR;
+	}
+
+	nodeFila->node = handle;
+	if(AppendFila2(fila,nodeFila) != SUCCESS){
+		printf("create_handle(): AppendFila2(&fila=%d,nodeFila) failed!",(int)fila);
+  		return ERROR;
+	}
+
+	handle->id = get_handle_id();
+	handle->record.TypeVal = record.TypeVal;
+	strcpy(handle->record.name,record.name);
+	handle->record.inodeNumber = record.inodeNumber;	
+	handle->current_offset = 0;
+
+	print_handles(&OPEN_DIRS,"OPEN_DIRS");	
+	return handle->id;
+}
+
 // Procura no diretorio dir pelo record de nome *name, e retorna o record
 struct t2fs_record find_record_in_dir (char *name, struct t2fs_inode dir) {
 
@@ -113,8 +162,10 @@ struct t2fs_record find_record_in_dir (char *name, struct t2fs_inode dir) {
 	// Percorre todos os blocos de dir
 	int i,j;
 	for(i=0; i < dir.blocksFileSize; i++){
+
 		// Ponteiros DIRETOS (2)
 		if(i < 2){
+
 			// ERRO na leitura do bloco
 			if(read_block(dir.dataPtr[i],buffer) == ERROR){
 				printf("find_record_in_dir(): read_block(block=%u,&buffer=%d) failed!",dir.dataPtr[i],(int)buffer);
@@ -124,8 +175,18 @@ struct t2fs_record find_record_in_dir (char *name, struct t2fs_inode dir) {
 			// PROCURA record no bloco lido
 			for(j=0; j < dir.bytesFileSize/sizeof(struct t2fs_record); j++){
 
-			}
-			
+				record.TypeVal = ((struct t2fs_record *)&buffer[j*sizeof(struct t2fs_record)])->TypeVal;
+				strcpy(record.name,((struct t2fs_record *)&buffer[j*sizeof(struct t2fs_record)])->name);
+				record.inodeNumber = ((struct t2fs_record *)&buffer[j*sizeof(struct t2fs_record)])->inodeNumber;
+				//print_record( (struct t2fs_record *) &buffer[j*sizeof(struct t2fs_record)] );
+				
+				// ENCONTROU o record
+				if( strcmp(record.name,name) == 0 && record.TypeVal != TYPEVAL_INVALIDO){
+					//print_record(&record);
+					return record;
+				
+				}
+			}			
 		}
 		
 		// Primeira INDIRECAO
@@ -135,6 +196,39 @@ struct t2fs_record find_record_in_dir (char *name, struct t2fs_inode dir) {
 	}
 	
 	return record;
+}
+
+//
+int get_handle(int id, PFILA2 origem, HANDLE *handle){
+	// Seta o iterador no inicio da fila ORIGEM
+	if(FirstFila2(origem) != SUCCESS){
+    	//printf("check_tid(): FirstFila2(origem) failed!\n");
+		return ERROR;
+	}
+	
+	PNODE2 nodeFila;
+	HANDLE *buffer;
+
+	// Percorre a lista em busca pelo id 
+	do{
+		nodeFila = GetAtIteratorFila2(origem);
+		if(nodeFila == NULL){
+			printf("check_tid(): GetAtIteratorFila2(origem) failed!");
+			return ERROR;
+		}
+
+		buffer = nodeFila->node;
+		// Encontrou o tid, retorna sucesso
+		if(buffer->id == id){
+			memcpy(handle,buffer,sizeof(HANDLE));
+			return SUCCESS;
+		}
+
+	}	
+	while(NextFila2(origem) == SUCCESS);
+
+	// Nao encontrou, retorna erro
+	return ERROR;
 }
 
 // Inicializacao T2FS
@@ -149,18 +243,12 @@ int init(){
 	// Atualiza a global SUPERBLOCO a partir do setor ZERO lido
 	memcpy(&SUPERBLOCK,&buffer,sizeof(struct t2fs_superbloco));
 
-	// Calcula o setor do inode ZERO
-	DWORD inode_zero_sector = SUPERBLOCK.blockSize * 
-						(SUPERBLOCK.superblockSize+
-						SUPERBLOCK.freeBlocksBitmapSize+
-						SUPERBLOCK.freeInodeBitmapSize);
-	// Le o inode ZERO do disco
-	if(read_sector(inode_zero_sector,buffer) != SUCCESS){
-    	printf("init(): read_sector(inode_zero_sector,buffer) failed!\n");
+	
+	// Le o inodo ZERO e atualiza global
+	if(read_inode(0,&INODE_ZERO) != SUCCESS){
+    	printf("init(): read_inode(0,&INODE_ZERO) failed!\n");
     	return ERROR;
 	}
-	// Atualiza a global INODE_ZERO com o inode lido
-	memcpy(&INODE_ZERO,&buffer,sizeof(struct t2fs_inode));
 
 	
 	// Imprime dados do disco e structs
@@ -257,76 +345,78 @@ DIR2 opendir2 (char *pathname){
     	return ERROR;		
 	}
 
+	// Estruturas usadas para percorrer a arvore de diretorios
+	struct t2fs_record record;
+	struct t2fs_inode curr_inode;
+	DIR2 handle;
+
 	// Aloca string "path" para manipulacao via strtok
 	char* token;
 	char *path = (char*)malloc(strlen(pathname)+1);
 	strcpy(path,pathname);
 	token = strtok(path,DELIMITER);
 
-	// Pathname ABSOLUTO:
-	if(pathname[0] == '/'){
-		// Pathname eh o "/", abre o diretorio RAIZ e retorna o handle
-		if(token == NULL) {
-			// Aloca e inicializa HANDLE para o diretorio RAIZ
-			PNODE2 nodeFila = (PNODE2)malloc(sizeof(NODE2));
-			if(nodeFila == NULL){
-				printf("opendir2(): (PNODE2)malloc(sizeof(NODE2)) failed!");
-				return ERROR;
-			}
+	// Pathname eh o "/", abre o diretorio RAIZ e retorna o handle
+	if(token == NULL) {
 
-			HANDLE *root_handle = (HANDLE*)malloc(sizeof(HANDLE));
-			if(root_handle == NULL){
-				printf("opendir2(): (HANDLE*)malloc(sizeof(HANDLE)) failed!");
-				return ERROR;
-			}
+		// INICIALIZA record do "/"
+		record.TypeVal = TYPEVAL_DIRETORIO;
+		record.name[0] = '/';
+		record.name[1] = '\0';
+		record.inodeNumber = 0;	
+		
+		// Aloca e inicializa HANDLE para o diretorio RAIZ e retorna
+		handle = create_handle(&OPEN_DIRS,record);
+		if(handle == ERROR){
+		   	printf("opendir2() failed to create handle for root dir \"/\"!\n");
+			return ERROR;					
+		}			
 
-			nodeFila->node = root_handle;
-			if(AppendFila2(&OPEN_DIRS,nodeFila) != SUCCESS){
-				printf("opendir2(): AppendFila2(&OPEN_DIRS,nodeFila) failed!");
-		  		return ERROR;
-			}
-
-			root_handle->id = get_handle_id();
-			root_handle->record.TypeVal = TYPEVAL_DIRETORIO;
-			root_handle->record.name[0] = '/';
-			root_handle->record.name[1] = '\0';
-			root_handle->record.inodeNumber = 0;	
-			root_handle->current_offset = 0;
-			
-			print_handles(&OPEN_DIRS,"OPEN_DIRS");
-			return root_handle->id;
-		}
-
-		// Pathname contem pelo menos um nivel a partir do diretorio raiz
-		else {
-			// Procura pelo record com o nome do token a partir do "/"
-			struct t2fs_inode curr_inode = INODE_ZERO;
-			do{
-				struct t2fs_record record = find_record_in_dir(token,curr_inode);				
-				printf("%s\n",token);
-				token = strtok(NULL,DELIMITER);
-				print_record(&record);
-				
-				// ENCONTROU o record, retorna
-				if(record.TypeVal != TYPEVAL_INVALIDO)
-					return SUCCESS;
-				
-			}
-			while(token != NULL);
-
-
-		}
-
-
+		return handle;
 	}
 
-	// Se o pathname for RELATIVO:
 
+	// Pathname ABSOLUTO:
+	if(pathname[0] == '/')
+		curr_inode = INODE_ZERO;
+	else
+		// Pathname RELATIVO:
+		if(read_inode(CWD->record.inodeNumber,&curr_inode)){
+		   	printf("opendir2() failed read inode of CWD!\n");
+			return ERROR;					
+		}		
 		
 
-	// NAO ENCONTROU o record, libera recursos e retorna record INVALIDO
-	free(path);
-	return ERROR;
+	// Procura pelo record com o nome do token a partir do curr_inode
+	do{
+		record = find_record_in_dir(token,curr_inode);				
+		printf("%s\n",token);
+		token = strtok(NULL,DELIMITER);
+		print_record(&record);
+		
+		// NAO ENCONTROU o record, libera recursos e retorna record INVALIDO
+		if(record.TypeVal == TYPEVAL_INVALIDO){
+			free(path);
+			return ERROR;
+		}
+
+		// ENCONTROU no NIVEL, segue no caminhamento do path
+		if(read_inode(record.inodeNumber,&curr_inode)){
+		   	printf("opendir2() failed read inode of dir \"%s\"!\n",token);
+			return ERROR;					
+		}		
+
+	}
+	while(token != NULL);
+
+	// ENCONTROU o diretorio, aloca e inicializa HANDLE para o diretorio e retorna
+	handle = create_handle(&OPEN_DIRS,record);
+	if(handle == ERROR){
+	   	printf("opendir2() failed to create handle for root dir \"/\"!\n");
+		return ERROR;					
+	}			
+
+	return handle;
 }
 
 int getcwd2 (char *pathname, int size){
@@ -358,3 +448,45 @@ int getcwd2 (char *pathname, int size){
     	return ERROR;	
 	}
 }
+
+
+FILE2 create2 (char *filename) {return ERROR;}
+int delete2 (char *filename) {return ERROR;}
+FILE2 open2 (char *filename) {return ERROR;}
+int close2 (FILE2 handle) {return ERROR;}
+int read2 (FILE2 handle, char *buffer, int size) {return ERROR;}
+int write2 (FILE2 handle, char *buffer, int size) {return ERROR;}
+int truncate2 (FILE2 handle) {return ERROR;}
+int seek2 (FILE2 handle, DWORD offset) {return ERROR;}
+int mkdir2 (char *pathname) {return ERROR;}
+int rmdir2 (char *pathname) {return ERROR;}
+
+int chdir2 (char *pathname) {
+	// Inicializa t2fs caso nao esteja
+	if(!T2FS_INIT)
+		if(init() == ERROR){
+        	printf("chdir2(): init() failed!\n");
+	    	return ERROR;		
+		}
+
+	// DESALOCA o CWD
+
+
+	// ABRE o arquivo pathname
+	DIR2 handle = opendir2(pathname);
+	if(handle != SUCCESS){
+		printf("chdir2(): opendir(pathname) failed!\n");
+	   	return ERROR;
+	}
+
+	// Atualiza CWD
+	get_handle(handle,&OPEN_DIRS,CWD);
+
+
+
+	return SUCCESS;
+}
+
+int readdir2 (DIR2 handle, DIRENT2 *dentry) {return ERROR;}
+int closedir2 (DIR2 handle) {return ERROR;}
+
