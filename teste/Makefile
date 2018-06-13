@@ -1,5 +1,5 @@
 LIB_DIR=../lib/
-BIN_DIR=../exemplos/
+BIN_DIR=../exemplo/
 
 all: identify2 getcwd2 opendir2
  
